@@ -1,0 +1,147 @@
+---
+title: "Prediction of Weight Lifting Quality"
+subtitle: 'Practical Machine Learning Course Project'
+author: "Mauricio Córdova"
+date: "February 28, 2020"
+output: html_document
+geometry: margin=2.54cm
+---
+
+```{r setup}
+knitr::opts_chunk$set(cache=TRUE,echo=TRUE)
+```
+
+# Motivation
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that peop)e regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, it will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Project Goal
+
+The goal of your project is to predict the manner in which the six particular did the exercise.
+This is the "classe" variable in the training set, and has 5 different levels. 
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+# Aquiring the Data Sets
+
+## Loading required Libraries
+
+```{r}
+library(caret)
+```
+
+```{r, echo=FALSE, results="hide"}
+Sys.time()
+```
+
+
+
+## Reading and Manipulating the Data
+
+1. Reading Data files with following switches:
+ 
+  * The values '#DIV/0!' will be automatically converted as NAs
+  * All Strings will be trated as Factors
+
+```{r reading}
+trainingWholeDS <- read.csv("data/pml-training.csv", na.strings=c('#DIV/0!', '', 'NA'), stringsAsFactors = T)
+testingDataSet  <- read.csv("data/pml-testing.csv",  na.strings=c('#DIV/0!', '', 'NA'), stringsAsFactors = T)
+```
+
+```{r, echo=FALSE, results="hide"}
+str(trainingWholeDS)
+str(testingDataSet)
+summary(trainingWholeDS)
+summary(testingDataSet)
+```
+
+
+
+2. Deleting NA-Values  from the data sets.
+The columns with NA-Values within the data sets for Training and Test will be erased
+```{r NAs, cache.extra = trainingWholeDS}
+trainingWholeDS <- trainingWholeDS[,(sapply(trainingWholeDS, function(x){ sum(is.na(x) ) } ))==0]
+testingDataSet  <- testingDataSet[,(sapply(testingDataSet, function(x){ sum(is.na(x) ) } ))==0]
+```
+
+Some variables has megative influences on the training set, then are useless for the model. These variables will be removed from the data set.
+```{r useless}
+useless <- c( "X", "raw_timestamp_part_1" )
+
+trainingWholeDS <- trainingWholeDS[,-which(names(trainingWholeDS) %in% useless)]
+testingDataSet  <- testingDataSet[,-which(names(testingDataSet) %in% useless)]
+```
+
+Only 80% of the Trainig data will be used for raining, the rest 20% will be use to validate the model
+```{r partitioning}
+portion <- createDataPartition(trainingWholeDS$classe, p=0.8, list = FALSE)
+
+trainingDataSet <- trainingWholeDS[portion,]
+validateDataSet <- trainingWholeDS[-portion,]
+```
+
+```{r, echo=FALSE, results="hide"}
+str(trainingWholeDS)
+str(testingDataSet)
+summary(trainingWholeDS)
+summary(testingDataSet)
+
+ptm <- proc.time()
+```
+
+# Training the Model
+
+The model will be trained using Random Forest as method
+```{r Training, cache.extra = trainingDataSet}
+# Setting reproducibility
+set.seed(666)
+
+randomForestModel  <- train(classe~., data = trainingDataSet, method = "rf", trControl = trainControl(method = "cv", number = 2, verboseIter = TRUE), importance = TRUE )
+```
+```{r, echo=FALSE, results="hide"}
+proc.time() - ptm
+```
+
+# Predictions
+
+With help of the Confusion Matrix will be checked the quality of the model
+```{r confusion, cache.extra = randomForestModel}
+predictions <- predict(randomForestModel, validateDataSet)
+predictionResults <- confusionMatrix(predictions, validateDataSet$classe)
+predictionResults$table
+```
+
+Also will be checked the relevance of the variables used by training the model
+```{r importance, cache.extra = randomForestModel, fig.height=5}
+variable.importances <- varImp(randomForestModel)
+plot(variable.importances)
+variable.importances
+```
+
+Finally, the predictions for the 20 cases are:
+```{r predicting, cache.extra = randomForestModel}
+predictions <- predict(randomForestModel, testingDataSet)
+predictions
+```
+
+```{r, echo=FALSE, results="hide"}
+proc.time() - ptm
+
+Sys.time()
+```
